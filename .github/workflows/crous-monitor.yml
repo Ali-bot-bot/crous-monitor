@@ -1,0 +1,44 @@
+name: Moniteur Crous Nice
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer les dependances
+        run: |
+          pip install requests playwright beautifulsoup4
+          playwright install --with-deps chromium
+
+      - name: Lancer la verification
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python crous_check.py
+
+      - name: Sauvegarder l'etat si change
+        run: |
+          if [ -n "$(git status --porcelain state.txt)" ]; then
+            git config user.name "crous-monitor-bot"
+            git config user.email "actions@github.com"
+            git add state.txt
+            git commit -m "Mise a jour de l'etat [skip ci]"
+            git push
+          else
+            echo "Aucun changement d'etat a committer."
+          fi
